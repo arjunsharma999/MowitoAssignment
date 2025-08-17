@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { SPLATLoader } from './SPLATLoader.js'
 
 export class ModelViewer {
     constructor() {
@@ -244,15 +245,101 @@ export class ModelViewer {
     }
 
     async loadPLYModel() {
-        // For demo purposes, we'll create a sample PLY model
-        // In a real app, you would load an actual PLY file
-        this.createSamplePLYModel()
+        try {
+            // Load the actual PLY file
+            const loader = new PLYLoader()
+            const geometry = await new Promise((resolve, reject) => {
+                loader.load(
+                    '/models/Patchwork chair.ply', // Your PLY file path
+                    (geometry) => resolve(geometry),
+                    (progress) => {
+                        console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%')
+                    },
+                    (error) => reject(error)
+                )
+            })
+            
+            // Create material for the PLY model
+            // Check if the geometry has vertex colors
+            const hasVertexColors = geometry.attributes.color && geometry.attributes.color.count > 0
+            
+            const material = new THREE.MeshLambertMaterial({ 
+                color: hasVertexColors ? 0xffffff : 0x3b82f6, // Use white if vertex colors exist
+                vertexColors: hasVertexColors, // Enable vertex colors if they exist
+                transparent: true,
+                opacity: 0.9
+            })
+            
+            this.model = new THREE.Mesh(geometry, material)
+            this.model.castShadow = true
+            this.model.receiveShadow = true
+            
+            // Center and scale the model appropriately
+            this.centerAndScaleModel()
+            
+            this.scene.add(this.model)
+            
+        } catch (error) {
+            console.error('Error loading PLY file:', error)
+            // Fallback to sample model if loading fails
+            this.createSamplePLYModel()
+        }
     }
 
     async loadSPLATModel() {
-        // For demo purposes, we'll create a sample SPLAT model
-        // In a real app, you would load an actual SPLAT file
-        this.createSampleSPLATModel()
+        try {
+            console.log('Starting SPLAT model loading...')
+            
+            // Load the actual SPLAT file
+            const loader = new SPLATLoader()
+            const geometry = await new Promise((resolve, reject) => {
+                loader.load(
+                    '/models/dino_30k_cropped.splat', // Your SPLAT file path
+                    (geometry) => {
+                        console.log('SPLAT geometry loaded:', geometry)
+                        console.log('Position count:', geometry.attributes.position?.count || 0)
+                        console.log('Color count:', geometry.attributes.color?.count || 0)
+                        resolve(geometry)
+                    },
+                    (progress) => {
+                        console.log('Loading SPLAT progress:', (progress.loaded / progress.total * 100) + '%')
+                    },
+                    (error) => {
+                        console.error('SPLAT loader error:', error)
+                        reject(error)
+                    }
+                )
+            })
+            
+            // Check if the geometry has vertex colors
+            const hasVertexColors = geometry.attributes.color && geometry.attributes.color.count > 0
+            console.log('Has vertex colors:', hasVertexColors)
+            
+            // Create material for the SPLAT model
+            const material = new THREE.PointsMaterial({ 
+                size: 0.05, // Increased point size for better visibility
+                vertexColors: hasVertexColors, // Enable vertex colors if they exist
+                transparent: true,
+                opacity: 0.9,
+                sizeAttenuation: true
+            })
+            
+            // Create points from the geometry
+            this.model = new THREE.Points(geometry, material)
+            console.log('SPLAT model created:', this.model)
+            
+            // Center and scale the model appropriately
+            this.centerAndScaleModel()
+            
+            this.scene.add(this.model)
+            console.log('SPLAT model added to scene')
+            
+        } catch (error) {
+            console.error('Error loading SPLAT file:', error)
+            // Fallback to sample model if loading fails
+            console.log('Falling back to sample SPLAT model')
+            this.createSampleSPLATModel()
+        }
     }
 
     createSamplePLYModel() {
@@ -317,6 +404,29 @@ export class ModelViewer {
         octahedron.position.set(0, 1.5, 0)
         octahedron.castShadow = true
         this.scene.add(octahedron)
+    }
+
+    centerAndScaleModel() {
+        if (!this.model) return
+        
+        // Compute bounding box to center and scale the model
+        const box = new THREE.Box3().setFromObject(this.model)
+        const center = box.getCenter(new THREE.Vector3())
+        const size = box.getSize(new THREE.Vector3())
+        
+        // Center the model
+        this.model.position.sub(center)
+        
+        // Scale the model to fit nicely in the viewport
+        const maxDim = Math.max(size.x, size.y, size.z)
+        const scale = 3 / maxDim // Scale to fit in a 3x3x3 box
+        this.model.scale.setScalar(scale)
+        
+        // Adjust camera distance based on model size
+        const distance = maxDim * 2
+        this.camera.position.set(distance, distance, distance)
+        this.controls.target.set(0, 0, 0)
+        this.controls.update()
     }
 
     goToCheckpoint(index) {
