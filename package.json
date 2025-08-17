@@ -4,7 +4,7 @@
   "description": "A web app for displaying 3D models with checkpoint navigation",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview"
   },
